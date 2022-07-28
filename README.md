@@ -42,8 +42,8 @@ bash <(curl -sSL https://raw.githubusercontent.com/fscarmen/alive/main/docker_sp
 ### 3.带参数 (pass parameter)
   | paremeter 参数 | value 值 | describe 具体动作说明 |
   | ----------|------- | --------------- |
-  | -F | 代理文件路径 |  |
-  | -N | 指定个数可用代理为一个文件| 如填0即为不分割 |
+  | -f | 代理文件路径 |  |
+  | -n | 指定个数可用代理为一个文件| 如填0即为不分割 |
 
 举例: 检测文件为 test 里的 socks5 和 https 代理，并把可用的以 10 个为一个文件输出
 ```
