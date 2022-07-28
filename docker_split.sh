@@ -37,6 +37,25 @@ case "$ARCHITECTURE" in
   * ) red " ERROR: Unsupported architecture: $ARCHITECTURE\n" && exit 1;;
 esac
 
+# 判断操作系统
+CMD=(	"$(grep -i pretty_name /etc/os-release 2>/dev/null | cut -d \" -f2)"
+	"$(hostnamectl 2>/dev/null | grep -i system | cut -d : -f2)"
+	"$(lsb_release -sd 2>/dev/null)"
+	"$(grep -i description /etc/lsb-release 2>/dev/null | cut -d \" -f2)"
+	"$(grep . /etc/redhat-release 2>/dev/null)"
+	"$(grep . /etc/issue 2>/dev/null | cut -d \\ -f1 | sed '/^[ ]*$/d')"
+	)
+
+for i in "${CMD[@]}"; do SYS="$i" && [[ -n $SYS ]] && break; done
+
+REGEX=("debian" "ubuntu" "centos|red hat|kernel|oracle linux|alma|rocky" "'amazon linux'" "alpine" "arch linux")
+RELEASE=("Debian" "Ubuntu" "CentOS" "CentOS" "Alpine" "Arch")
+PACKAGE_INSTALL=("apt -y install" "apt -y install" "yum -y install" "yum -y install" "apk add -f" "pacman -S --noconfirm")
+PACKAGE_UNINSTALL=("apt -y autoremove" "apt -y autoremove" "yum -y autoremove" "yum -y autoremove" "apk del -f" "pacman -Rcnsu --noconfirm")
+
+for ((int=0; int<${#REGEX[@]}; int++)); do
+	[[ $(tr '[:upper:]' '[:lower:]' <<< $SYS) =~ ${REGEX[int]} ]] && SYSTEM="${RELEASE[int]}" && break
+done
 
 # 输入检测文件路径和分割数量,并作初步检测
 [[ -z $FILE_PATH ]] && reading "\n Enter proxy file PATH. For example: /root/proxy.conf : " FILE_PATH
@@ -49,17 +68,20 @@ echo $NUM | grep -q "[^0-9]" && red " ERROR: $NUM is not an integer.\n" && exit 
 # 脚本开始时间
 START=$(date +%s)
 
-# 检查并安装 dos2unix 依赖，把 windows 文件格式化成 unix 使用的
-type -p apt >/dev/null 2>&1 && INSTALL='apt -y install' || INSTALL='yum -y install'
-type -p dos2unix >/dev/null 2>&1 || $INSTALL dos2unix
+# 安装 python3 以支持 json 格式, dos2unix 依赖，把 windows 文件格式化成 unix 使用的, wget 和 unzip 依赖
+DEPENDENCIES=(wget python3 unzip dos2unix)
+for i in ${DEPENDENCIES[@]}; do
+  ! type -p $i >/dev/null 2>&1 && NEED_REMOVE=($i ${NEED_REMOVE[@]})
+done
+[ ${#NEED_REMOVE[@]} != 0 ] && yellow "\n Install ${NEED_REMOVE[@]}\n" && ${PACKAGE_INSTALL[int]} ${NEED_REMOVE[@]}
+
+# 把 windows 文件格式化成 unix 使用的
 dos2unix $FILE_PATH
 
 # 宿主机安装 v2ray
 if ! systemctl is-enabled v2ray >/etc/null 2>&1; then
-  green " \n Install v2ray \n "
+  yellow " \n Install v2ray \n "
   ${PACKAGE_UNINSTALL[int]} netfilter-persistent
-  ! type -p wget >/dev/null 2>&1 && ${PACKAGE_INSTALL[int]} wget
-  ! type -p unzip >/dev/null 2>&1 && ${PACKAGE_INSTALL[int]} unzip
   wget --no-check-certificate -O ./v2ray-linux-$V2RAY.zip https://github.com/v2fly/v2ray-core/releases/download/v4.45.0/v2ray-linux-$V2RAY.zip
   mkdir -p /etc/v2ray
   unzip -d /etc/v2ray v2ray-linux-*.zip
@@ -70,9 +92,6 @@ if ! systemctl is-enabled v2ray >/etc/null 2>&1; then
   ! systemctl is-enabled v2ray >/etc/null 2>&1 && red "\n ERROR: v2ray doesn't work.\n" && exit 1
   rm -f v2ray-linux-*.zip
 fi
-
-# 安装 python3 以支持 json 格式
-! type -p python3 >/dev/null 2>&1 && yellow "\n Install python3\n" && ${PACKAGE_INSTALL[int]} python3
 
 # 创建 iptables 规则
 iptables -P INPUT ACCEPT
@@ -152,10 +171,10 @@ for ((u=0; u<$CHECK_TIME; u++)); do
         WS_PORT=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | grep '"port":' | cut -d\" -f4)
 
         if echo "$PROXY_NOW" | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep -q '"tls": "tls"'; then
-          # 安全类型为 tls，即为 vmess + ws + tls
+          # 安全类型为 tls,即为 vmess + ws + tls
           JSON="{ \"inbounds\": [ { \"listen\": \"172.20.0.1\", \"port\": $V2RAY_PORT, \"protocol\": \"dokodemo-door\", \"settings\": { \"network\": \"tcp,udp\", \"followRedirect\": true }, \"sniffing\": { \"enabled\": true, \"destOverride\": [ \"http\", \"tls\" ] } } ], \"policy\": { \"levels\": { \"0\": { \"statsUserDownlink\": true, \"statsUserUplink\": true } }, \"system\": { \"statsInboundUplink\": true, \"statsInboundDownlink\": true } }, \"outbounds\": [ { \"tag\": \"proxy\", \"mux\": { \"enabled\": false, \"concurrency\": 8 }, \"protocol\": \"vmess\", \"streamSettings\": { \"network\": \"ws\", \"security\": \"tls\", \"wsSettings\": { \"path\": \"$WS_PATH\", \"headers\": { \"host\": \"$WS_HOST\" } }, \"tlsSettings\": { \"serverName\": \"$WS_HOST\", \"allowInsecure\": false } },  \"settings\": { \"vnext\": [ { \"address\": \"$WS_ADD\", \"users\": [ { \"id\": \"$WS_ID\", \"alterId\": 0, \"level\": 0, \"security\": \"aes-128-gcm\" } ], \"port\": $WS_PORT } ] } } ], \"routing\": { \"rules\": [ { \"type\": \"field\", \"outboundTag\": \"proxy\", \"source\": [ \"172.20.0.2\" ] }, { \"type\": \"field\", \"network\": \"tcp,udp\", \"outboundTag\": \"direct\" } ] } }"
         else
-          # 安全类型为 tls，即为 vmess + ws + none
+          # 安全类型为 tls,即为 vmess + ws + none
           JSON="{ \"inbounds\": [ { \"listen\": \"172.20.0.1\", \"port\": $V2RAY_PORT, \"protocol\": \"dokodemo-door\", \"settings\": { \"network\": \"tcp,udp\", \"followRedirect\": true }, \"sniffing\": { \"enabled\": true, \"destOverride\": [ \"http\", \"tls\" ] } } ], \"policy\": { \"levels\": { \"0\": { \"statsUserDownlink\": true, \"statsUserUplink\": true } }, \"system\": { \"statsInboundUplink\": true, \"statsInboundDownlink\": true } }, \"outbounds\": [ { \"tag\": \"proxy\", \"mux\": { \"enabled\": false, \"concurrency\": 8 }, \"protocol\": \"vmess\", \"streamSettings\": { \"network\": \"ws\", \"security\": \"none\", \"wsSettings\": { \"path\": \"$WS_PATH\", \"headers\": { \"host\": \"$WS_HOST\" } } },  \"settings\": { \"vnext\": [ { \"address\": \"$WS_ADD\", \"users\": [ { \"id\": \"$WS_ID\", \"alterId\": 0, \"level\": 0, \"security\": \"aes-128-gcm\" } ], \"port\": $WS_PORT } ] } } ], \"routing\": { \"rules\": [ { \"type\": \"field\", \"outboundTag\": \"proxy\", \"source\": [ \"172.20.0.2\" ] }, { \"type\": \"field\", \"network\": \"tcp,udp\", \"outboundTag\": \"direct\" } ] } }"
         fi
       else
@@ -245,6 +264,9 @@ docker rmi -f fscarmen/alive:latest
 # 删除防火墙相关规则
 iptables -t nat -D PREROUTING -s 172.20.0.1 -p tcp -j RETURN
 iptables -t nat -D PREROUTING -s 172.20.0.0/16 -p tcp -j DNAT --to-destination 172.20.0.1:$V2RAY_PORT
+
+# 删除本脚本安装的系统依赖
+[ ${#NEED_REMOVE[@]} != 0 ] && yellow "\n Uninstall ${NEED_REMOVE[@]}\n" && ${PACKAGE_UNINSTALL[int]} ${NEED_REMOVE[@]}
 
 # 结束时间，计算运行时长
 END=$(date +%s)
