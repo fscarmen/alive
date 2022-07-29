@@ -235,7 +235,7 @@ for ((u=0; u<$CHECK_TIME; u++)); do
         TROJAN_PASSWORD=$(echo $PROXY_NOW | sed 's#trojan://\([^#]\+\).*#\1#g' | cut -d@ -f1)
         TROJAN_ADD=$(echo $PROXY_NOW | sed "s#.*@\([^:]\+\).*#\1#g")
         TROJAN_PORT=$(echo $PROXY_NOW | sed "s#.*:\([0-9]\+\)?.*#\1#g")
-        echo $PROXY_NOW | grep -q 'security=tls' && TROJAN_SNI=$TROJAN_ADD || TROJAN_SNI=$(echo $PROXY_NOW | sed "s#.*sni=\([^&#]\+\).*#\1#g")
+        echo $PROXY_NOW | grep -q 'sni=' && TROJAN_SNI=$(echo $PROXY_NOW | sed "s#.*sni=\([^&#]\+\).*#\1#g") || TROJAN_SNI=$TROJAN_ADD
       JSON="{ \"inbounds\": [ { \"listen\": \"172.20.0.1\", \"port\": $V2RAY_PORT, \"protocol\": \"dokodemo-door\", \"settings\": { \"network\": \"tcp,udp\", \"followRedirect\": true }, \"sniffing\": { \"enabled\": true, \"destOverride\": [ \"http\", \"tls\" ] } } ], \"policy\": { \"levels\": { \"0\": { \"statsUserDownlink\": true, \"statsUserUplink\": true } }, \"system\": { \"statsInboundUplink\": true, \"statsInboundDownlink\": true } }, \"outbounds\": [ { \"mux\": { \"enabled\": false, \"concurrency\": 8 }, \"protocol\": \"trojan\", \"streamSettings\": { \"tcpSettings\": { \"header\": { \"type\": \"none\" } }, \"tlsSettings\": { \"serverName\": \"$TROJAN_SNI\", \"allowInsecure\": true }, \"security\": \"tls\", \"network\": \"tcp\" }, \"tag\": \"proxy\", \"settings\": { \"servers\": [ { \"password\": \"$TROJAN_PASSWORD\", \"port\": $TROJAN_PORT, \"email\": \"\", \"level\": 0, \"address\": \"$TROJAN_ADD\" } ] } } ], \"routing\": { \"rules\": [ { \"type\": \"field\", \"outboundTag\": \"proxy\", \"source\": [ \"172.20.0.2\" ] }, { \"type\": \"field\", \"network\": \"tcp,udp\", \"outboundTag\": \"direct\" } ] } }"
 
     fi
@@ -252,7 +252,7 @@ for ((u=0; u<$CHECK_TIME; u++)); do
 done
 
 # 删除 v2ray
-green " Remove temp files "
+yellow " Remove temp files "
 systemctl disable --now v2ray
 rm -rf /etc/v2ray/ /lib/systemd/system/v2ray.service
 
