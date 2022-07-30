@@ -163,14 +163,14 @@ for ((u=0; u<$CHECK_TIME; u++)); do
       echo "$PROXY_NOW" | grep -q "^vmess"; then
 
       # 传输协议为 ws
-      if echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | grep -q '"net": "ws"'; then
-        WS_ID=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | grep '"id":' | cut -d\" -f4)
-        WS_ADD=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | grep '"add":' | cut -d\" -f4)
-        WS_HOST=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | grep '"host":' | cut -d\" -f4)
-        WS_PATH=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | grep '"path":' | cut -d\" -f4)
-        WS_PORT=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | grep '"port":' | cut -d\" -f4)
+      if echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | grep -q '"net":[[:space:]]*"ws"'; then
+        WS_ID=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"id":' | cut -d\" -f4)
+        WS_ADD=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"add":' | cut -d\" -f4)
+        WS_HOST=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"host":' | cut -d\" -f4)
+        WS_PATH=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"path":' | cut -d\" -f4 | sed 's#%2[Ff]#/#g')
+        WS_PORT=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"port":' | cut -d\" -f4)
 
-        if echo "$PROXY_NOW" | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep -q '"tls": "tls"'; then
+        if echo "$PROXY_NOW" | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep -q '"tls":[[:space:]]*"tls"'; then
           # 安全类型为 tls,即为 vmess + ws + tls
           JSON="{ \"inbounds\": [ { \"listen\": \"172.20.0.1\", \"port\": $V2RAY_PORT, \"protocol\": \"dokodemo-door\", \"settings\": { \"network\": \"tcp,udp\", \"followRedirect\": true }, \"sniffing\": { \"enabled\": true, \"destOverride\": [ \"http\", \"tls\" ] } } ], \"policy\": { \"levels\": { \"0\": { \"statsUserDownlink\": true, \"statsUserUplink\": true } }, \"system\": { \"statsInboundUplink\": true, \"statsInboundDownlink\": true } }, \"outbounds\": [ { \"tag\": \"proxy\", \"mux\": { \"enabled\": false, \"concurrency\": 8 }, \"protocol\": \"vmess\", \"streamSettings\": { \"network\": \"ws\", \"security\": \"tls\", \"wsSettings\": { \"path\": \"$WS_PATH\", \"headers\": { \"host\": \"$WS_HOST\" } }, \"tlsSettings\": { \"serverName\": \"$WS_HOST\", \"allowInsecure\": false } },  \"settings\": { \"vnext\": [ { \"address\": \"$WS_ADD\", \"users\": [ { \"id\": \"$WS_ID\", \"alterId\": 0, \"level\": 0, \"security\": \"aes-128-gcm\" } ], \"port\": $WS_PORT } ] } } ], \"routing\": { \"rules\": [ { \"type\": \"field\", \"outboundTag\": \"proxy\", \"source\": [ \"172.20.0.2\" ] }, { \"type\": \"field\", \"network\": \"tcp,udp\", \"outboundTag\": \"direct\" } ] } }"
         else
@@ -179,11 +179,11 @@ for ((u=0; u<$CHECK_TIME; u++)); do
         fi
       else
         # 传输协议为 tcp
-        TCP_ID=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | grep '"id":' | cut -d\" -f4)
-        TCP_ADD=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | grep '"add":' | cut -d\" -f4)
-        TCP_PORT=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | grep '"port":' | cut -d\" -f4)
+        TCP_ID=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"id":' | cut -d\" -f4)
+        TCP_ADD=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"add":' | cut -d\" -f4)
+        TCP_PORT=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"port":' | cut -d\" -f4)
 
-        if echo "$PROXY_NOW" | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep -q '"tls": "tls"'; then
+        if echo "$PROXY_NOW" | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep -q '"tls":[[:space:]]*"tls"'; then
           # 安全类型为 tls,即为 vmess + tcp + tls
           JSON="{ \"inbounds\": [ { \"listen\": \"172.20.0.1\", \"port\": $V2RAY_PORT, \"protocol\": \"dokodemo-door\", \"settings\": { \"network\": \"tcp,udp\", \"followRedirect\": true }, \"sniffing\": { \"enabled\": true, \"destOverride\": [ \"http\", \"tls\" ] } } ], \"policy\": { \"levels\": { \"0\": { \"statsUserDownlink\": true, \"statsUserUplink\": true } }, \"system\": { \"statsInboundUplink\": true, \"statsInboundDownlink\": true } }, \"outbounds\": [ { \"tag\": \"proxy\", \"mux\": { \"enabled\": false, \"concurrency\": 8 }, \"protocol\": \"vmess\", \"streamSettings\": { \"network\": \"tcp\", \"tcpSettings\": { \"header\": { \"type\": \"none\" } }, \"security\": \"tls\" , \"tlsSettings\": { \"allowInsecure\": false } }, \"settings\": { \"vnext\": [ { \"address\": \"$TCP_ADD\", \"users\": [ { \"id\": \"$TCP_ID\", \"alterId\": 0, \"level\": 0, \"security\": \"aes-128-gcm\" } ], \"port\": $TCP_PORT } ] } } ], \"routing\": { \"rules\": [ { \"type\": \"field\", \"outboundTag\": \"proxy\", \"source\": [ \"172.20.0.2\" ] }, { \"type\": \"field\", \"network\": \"tcp,udp\", \"outboundTag\": \"direct\" } ] } }"
         else
@@ -200,7 +200,7 @@ for ((u=0; u<$CHECK_TIME; u++)); do
         WS_ID=$(echo $PROXY_NOW | sed 's#vless://\([^@]\+\).*#\1#g')
         WS_ADD=$(echo $PROXY_NOW | sed 's#.*@\([^:]\+\).*#\1#g')
         WS_HOST=$(echo $PROXY_NOW | sed 's#.*host=\([^&#]\+\).*#\1#g')
-        WS_PATH=$(echo $PROXY_NOW | sed 's#.*path=\([^&#]\+\).*#\1#g; s#%2[Ff]#/#g')
+        WS_PATH=$(echo $PROXY_NOW | sed 's#.*path=\([^&#]\+\).*#\1#g' | sed 's#%2[Ff]#/#g')
         WS_PORT=$(echo $PROXY_NOW | sed "s#.*:\([0-9]\+\)?.*#\1#g")
         
         if echo $PROXY_NOW | grep -q 'security=tls'; then
@@ -299,7 +299,7 @@ else
   echo "${OK_PROXIES[@]}" | grep -oP "\K\S+" > $FILE_PATH.available
   split -l $NUM $FILE_PATH.available -d $FILE_PATH-
   rm -f $FILE_PATH.available
-  green " Result:\n ${#OK_PROXIES[@]} proxies are available in $(cat $FILE_PATH | wc -l). "
+  green " Result:\n ${#OK_PROXIES[@]} proxies are available in $(cat $FILE_PATH | sed "/^[[:space:]]*$/d" | wc -l). "
   ls | egrep -q "^$FILE_PATH-[0-9]+$" && green " Split into $(ls | egrep "^$FILE_PATH-[0-9]+$" | wc -l) files: $(ls | egrep "^$FILE_PATH-[0-9]+$" | paste -sd " "). "
   [ -e $FILE_PATH-unavailable ] && red " Unavailable proxies are in file: $FILE_PATH-unavailable. "
   green " Runing time: $DAY days $HOUR hours $MIN minutes $SEC seconds.\n "
