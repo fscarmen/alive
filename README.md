@@ -16,7 +16,8 @@
 测综合的 docker_split.sh，由于vmess和vless涉及的组合太多，故需要慢慢完善
 
 ## 脚本特点
-* 支持多种主流协议: vmess, vless (XTLS除外), ss, socks5, http(s), trojan
+* 代码开源透明，不会收集上报信息。原理：1、vps 本地安装官方 v2ray 和官方 alpine docker (升级 curl 指令)，2、docker 通过 v2ray 连外网，3、逐一测试代理是否正确从 ip.sb 获取 IP ，4、最终把成功和失败的代理输出到 vps 本地文件
+* 支持多种主流协议: vmess, vless (XTLS除外), ss, socks5, https, trojan
 * 把经测试可用的代理，按用户指定个数分割为 N 个文件，不可用的代理输出为一个文件, 结果输出有提示
 * 脚本运行完会删除使用到的系统依赖、v2ray 和 alpine docker
 * 使用 docker_split 将会安装最新版 v2ray，请使用没有安装 xray 和 v2ray 的并且有 IPv4 网络的 VPS 上运行，以免冲突
