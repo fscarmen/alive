@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 更新日期 2022-7-30
+# 更新日期 2022-8-10
 
 # 定义 v2ray 的端口
 V2RAY_PORT='8080'
@@ -118,7 +118,8 @@ docker run -dit --restart=always --name $NAME --net $NAME --ip 172.20.0.2 --sysc
 # 删除旧文件
 rm -f $FILE_PATH-*
 
-REMOVE_PROXIES=($(cat $FILE_PATH))
+# 代理去重
+REMOVE_PROXIES=($(sort -u $FILE_PATH))
 for ((u=0; u<$CHECK_TIME; u++)); do
   v=0
   PROXIES_NUM=${#REMOVE_PROXIES[@]}
@@ -168,7 +169,7 @@ for ((u=0; u<$CHECK_TIME; u++)); do
         WS_ADD=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"add":' | cut -d\" -f4)
         WS_HOST=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"host":' | cut -d\" -f4)
         WS_PATH=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"path":' | cut -d\" -f4 | sed 's#%2[Ff]#/#g')
-        WS_PORT=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"port":' | cut -d\" -f4)
+        WS_PORT=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"port":' | grep -oP "\d+")
 
         if echo "$PROXY_NOW" | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep -q '"tls":[[:space:]]*"tls"'; then
           # 安全类型为 tls,即为 vmess + ws + tls
@@ -181,7 +182,7 @@ for ((u=0; u<$CHECK_TIME; u++)); do
         # 传输协议为 tcp
         TCP_ID=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"id":' | cut -d\" -f4)
         TCP_ADD=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"add":' | cut -d\" -f4)
-        TCP_PORT=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"port":' | cut -d\" -f4)
+        TCP_PORT=$(echo $PROXY_NOW | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep '"port":' | grep -oP "\d+")
 
         if echo "$PROXY_NOW" | sed "s#vmess://##g" | base64 -d | python3 -m json.tool | grep -q '"tls":[[:space:]]*"tls"'; then
           # 安全类型为 tls,即为 vmess + tcp + tls
@@ -230,16 +231,16 @@ for ((u=0; u<$CHECK_TIME; u++)); do
       echo "$PROXY_NOW" | grep -q "^ss://"; then
         # 新版格式带 @ 后面的地址和端口是明文的
       if echo "$PROXY_NOW" | grep -q "@"; then
-        SS_METHOD=$(echo $PROXY_NOW | sed 's#ss://##g' | cut -d '@' -f1 | base64 -d | cut -d : -f1)
-        SS_PASSWORD=$(echo $PROXY_NOW | sed 's#ss://##g' | cut -d '@' -f1 | base64 -d | cut -d : -f2)
+        SS_METHOD=$(echo $PROXY_NOW | sed 's#ss://##g' | cut -d '@' -f1 | base64 -d 2>/dev/null | cut -d : -f1)
+        SS_PASSWORD=$(echo $PROXY_NOW | sed 's#ss://##g' | cut -d '@' -f1 | base64 -d  2>/dev/null  | cut -d : -f2)
         SS_ADD=$(echo $PROXY_NOW | sed "s/.*@\([^:]\+\).*/\1/g")
-        SS_PORT=$(echo $PROXY_NOW | sed "s/.*:\([^#]\+\).*/\1/g")
+        SS_PORT=$(echo $PROXY_NOW | sed "s/.*:\([0-9]\+\).*/\1/g")
       else
         # 旧版本格式，全部经过 base64 encode 的
-        SS_METHOD=$(echo $PROXY_NOW | sed 's#ss://\([^#]\+\).*#\1#g' | base64 -d | cut -d@ -f1 | cut -d: -f1)
-        SS_PASSWORD=$(echo $PROXY_NOW | sed 's#ss://\([^#]\+\).*#\1#g' | base64 -d | cut -d@ -f1 | cut -d: -f2)
-        SS_ADD=$(echo $PROXY_NOW | sed 's#ss://\([^#]\+\).*#\1#g' | base64 -d | cut -d@ -f2 | cut -d: -f1)
-        SS_PORT=$(echo $PROXY_NOW | sed 's#ss://\([^#]\+\).*#\1#g' | base64 -d | cut -d@ -f2 | cut -d: -f2)
+        SS_METHOD=$(echo $PROXY_NOW | sed 's#ss://\([^#]\+\).*#\1#g' | base64 -d 2>/dev/null | cut -d@ -f1 | cut -d: -f1)
+        SS_PASSWORD=$(echo $PROXY_NOW | sed 's#ss://\([^#]\+\).*#\1#g' | base64 -d 2>/dev/null | cut -d@ -f1 | cut -d: -f2)
+        SS_ADD=$(echo $PROXY_NOW | sed 's#ss://\([^#]\+\).*#\1#g' | base64 -d 2>/dev/null | cut -d@ -f2 | cut -d: -f1)
+        SS_PORT=$(echo $PROXY_NOW | sed 's#ss://\([^#]\+\).*#\1#g' | base64 -d 2>/dev/null | cut -d@ -f2 | cut -d: -f2)
       fi
       JSON="{ \"inbounds\": [ { \"listen\": \"172.20.0.1\", \"port\": $V2RAY_PORT, \"protocol\": \"dokodemo-door\", \"settings\": { \"network\": \"tcp,udp\", \"followRedirect\": true }, \"sniffing\": { \"enabled\": true, \"destOverride\": [ \"http\", \"tls\" ] } } ], \"policy\": { \"levels\": { \"0\": { \"statsUserDownlink\": true, \"statsUserUplink\": true } }, \"system\": { \"statsInboundUplink\": true, \"statsInboundDownlink\": true } }, \"outbounds\": [ { \"tag\": \"proxy\", \"protocol\": \"shadowsocks\", \"streamSettings\": { \"network\": \"tcp\", \"tcpSettings\": { \"header\": { \"type\": \"none\" } }, \"security\": \"none\" }, \"settings\": { \"servers\": [ { \"port\": $SS_PORT, \"method\": \"$SS_METHOD\", \"password\": \"$SS_PASSWORD\", \"address\": \"$SS_ADD\", \"level\": 0, \"email\": \"\", \"ota\": false } ] } } ], \"routing\": { \"rules\": [ { \"type\": \"field\", \"outboundTag\": \"proxy\", \"source\": [ \"172.20.0.2\" ] }, { \"type\": \"field\", \"network\": \"tcp,udp\", \"outboundTag\": \"direct\" } ] } }"
 
