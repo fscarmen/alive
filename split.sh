@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 更新日期 2022-7-18
+# 更新日期 2022-12-30
 
 # 传参
 while getopts “:N:n:F:f:” OPTNAME; do
@@ -53,6 +53,9 @@ done
 
 # 把 windows 文件格式化成 unix 使用的
 dos2unix $FILE_PATH
+
+# 设定当前系统最大进程数
+ulimit -n 999999
 
 FILE=("$FILE_PATH" "$FILE_PATH-check1" "$FILE_PATH-check2")
 TEMP=("$FILE_PATH-check1" "$FILE_PATH-check2" "$FILE_PATH-unavailable")
